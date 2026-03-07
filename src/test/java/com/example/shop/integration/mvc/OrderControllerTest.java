@@ -78,7 +78,7 @@ public class OrderControllerTest extends BaseTestContainerTest {
                     final var orders = (List<OrderDto>) result.getModelAndView().getModel().get("orders");
 
                     assertEquals(1, orders.size());
-                    assertEquals(1100, orders.get(0).totalSum());
+                    assertEquals(1100, orders.getFirst().totalSum());
                 });
     }
 }
