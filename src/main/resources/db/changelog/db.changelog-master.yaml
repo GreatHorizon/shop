@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - include:
+      file: 001-init-products-schema.xml
+      relativeToChangelogFile: true
+  - include:
+      file: 002-init-products-in-cart-schema.xml
+      relativeToChangelogFile: true
+  - include:
+      file: 003-init-orders-scheme.xml
+      relativeToChangelogFile: true
+  - include:
+      file: 004-init-products-in-order-schema.xml
+      relativeToChangelogFile: true
+  - include:
+      file: 005-update-autoincrement-schema.xml
+      relativeToChangelogFile: true
+  - include:
+      file: 006-update-unique-product-in-cart-schema.xml
+      relativeToChangelogFile: true
+  - include:
+      file: 007-add-product-id-to-product-in-order.xml
+      relativeToChangelogFile: true

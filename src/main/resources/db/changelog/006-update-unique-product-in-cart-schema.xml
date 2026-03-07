@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="6" author="selawik">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <not>
+                    <tableExists tableName="products_in_cart"/>
+                </not>
+                <dbms type="postgresql"/>
+            </and>
+        </preConditions>
+
+        <addUniqueConstraint tableName="products_in_cart" columnNames="product_id" constraintName="unique_product_in_cart_constraint"/>
+        <rollback>
+            <dropUniqueConstraint tableName="products_in_cart" constraintName="unique_product_in_cart_constraint"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>
