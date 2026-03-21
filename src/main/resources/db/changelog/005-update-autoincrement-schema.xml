@@ -1,0 +1,40 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet author="selawik" id="5">
+        <addAutoIncrement
+                columnName="id"
+                defaultOnNull="false"
+                generationType="ALWAYS"
+                incrementBy="1"
+                schemaName="public"
+                startWith="1"
+                tableName="products"/>
+        <addAutoIncrement
+                columnName="id"
+                defaultOnNull="false"
+                generationType="ALWAYS"
+                incrementBy="1"
+                schemaName="public"
+                startWith="1"
+                tableName="orders"/>
+        <addAutoIncrement
+                columnName="id"
+                defaultOnNull="false"
+                generationType="ALWAYS"
+                incrementBy="1"
+                schemaName="public"
+                startWith="1"
+                tableName="products_in_cart"/>
+        <addAutoIncrement
+                columnName="id"
+                defaultOnNull="false"
+                generationType="ALWAYS"
+                incrementBy="1"
+                schemaName="public"
+                startWith="1"
+                tableName="products_in_order"/>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,36 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="7" author="selawik">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="products_in_order"
+                              columnName="product_id"/>
+                <foreignKeyConstraintExists foreignKeyName="fk_products_in_order_product_id"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="products_in_order">
+            <column name="product_id" type="bigint"/>
+        </addColumn>
+
+        <addForeignKeyConstraint
+                baseTableName="products_in_order"
+                baseColumnNames="product_id"
+                constraintName="fk_products_in_order_product_id"
+                referencedTableName="products"
+                referencedColumnNames="id"/>
+
+        <rollback>
+            <dropForeignKeyConstraint
+                    baseTableName="products_in_order"
+                    constraintName="fk_products_in_order_product_id"/>
+
+            <dropColumn
+                    tableName="products_in_order"
+                    columnName="product_id"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>
