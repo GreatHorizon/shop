@@ -53,4 +53,8 @@ public class ProductsInOrderModel {
     public int getCount() {
         return count;
     }
+
+    public Long getOrderId() {
+        return orderId;
+    }
 }

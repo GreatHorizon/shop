@@ -2,7 +2,6 @@ package com.example.shop.service;
 
 
 import com.example.shop.dto.CartProductsDto;
-import com.example.shop.dto.ProductDto;
 import com.example.shop.entity.ProductInCartEntity;
 import com.example.shop.mapper.ProductMapper;
 import com.example.shop.model.CartActionModel;

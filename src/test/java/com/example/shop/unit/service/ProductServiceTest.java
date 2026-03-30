@@ -1,6 +1,5 @@
 package com.example.shop.unit.service;
 
-import com.example.shop.dto.ProductDto;
 import com.example.shop.model.ProductModel;
 import com.example.shop.model.ProductsInCartModel;
 import com.example.shop.model.SortModel;
@@ -130,8 +129,8 @@ class ProductServiceTest {
                     assertEquals(3, dto.items().get(0).size());
                     assertEquals(1, dto.items().get(1).size());
 
-                    assertEquals("Product 1", dto.items().get(0).get(0).title());
-                    assertEquals("Product 4", dto.items().get(1).get(0).title());
+                    assertEquals("Product 1", dto.items().get(0).getFirst().title());
+                    assertEquals("Product 4", dto.items().get(1).getFirst().title());
 
                     assertEquals(10, dto.pagingDto().pageSize());
                     assertEquals(1, dto.pagingDto().pageNumber());
@@ -166,9 +165,9 @@ class ProductServiceTest {
                     assertNotNull(dto);
                     assertFalse(dto.items().isEmpty());
                     assertEquals(1, dto.items().size());
-                    assertEquals(2, dto.items().get(0).size());
-                    assertEquals("Alpha Product", dto.items().get(0).get(0).title());
-                    assertEquals("Beta Product", dto.items().get(0).get(1).title());
+                    assertEquals(2, dto.items().getFirst().size());
+                    assertEquals("Alpha Product", dto.items().getFirst().get(0).title());
+                    assertEquals("Beta Product", dto.items().getFirst().get(1).title());
                 })
                 .verifyComplete();
 
