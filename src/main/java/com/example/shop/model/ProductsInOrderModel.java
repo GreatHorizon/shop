@@ -1,28 +1,40 @@
 package com.example.shop.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
 @Table(name = "products_in_order")
 public class ProductsInOrderModel {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column("order_id")
+    private Long orderId;
 
-    @ManyToOne
-    @JoinColumn(name = "order_id")
-    private OrderModel order;
+    public void setCount(int count) {
+        this.count = count;
+    }
 
-    @ManyToOne
-    @JoinColumn(name = "product_id")
-    private ProductModel product;
+    public void setProductId(Long productId) {
+        this.productId = productId;
+    }
 
-    @Column(name = "count")
+    public void setOrderId(Long orderId) {
+        this.orderId = orderId;
+    }
+
+    @Column("product_id")
+    private Long productId;
     private int count;
 
-    public ProductsInOrderModel(int count, ProductModel product) {
+    public Long getProductId() {
+        return productId;
+    }
+
+    public ProductsInOrderModel(int count, Long orderId, Long productId) {
         this.count = count;
-        this.product = product;
+        this.orderId = orderId;
+        this.productId = productId;
     }
 
     public ProductsInOrderModel() {
@@ -37,25 +49,6 @@ public class ProductsInOrderModel {
         this.id = id;
     }
 
-    public OrderModel getOrder() {
-        return order;
-    }
-
-    public void setOrder(OrderModel order) {
-        this.order = order;
-    }
-
-    public ProductModel getProduct() {
-        return product;
-    }
-
-    public void setProduct(ProductModel product) {
-        this.product = product;
-    }
-
-    public int getTotalPrice() {
-        return product.price() * count;
-    }
 
     public int getCount() {
         return count;

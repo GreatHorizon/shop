@@ -1,21 +1,26 @@
 package com.example.shop.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity(name = "products_in_cart")
+
+@Table(name = "products_in_cart")
 public class ProductsInCartModel {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private int count;
 
-    @OneToOne
-    @JoinColumn(name = "product_id")
-    private ProductModel product;
+    public void setProductId(Long productId) {
+        this.productId = productId;
+    }
 
-    public ProductsInCartModel(int count, ProductModel product) {
+    @Column("product_id")
+    private Long productId;
+
+    public ProductsInCartModel(int count, Long productId) {
         this.count = count;
-        this.product = product;
+        this.productId = productId;
     }
 
     public ProductsInCartModel() {
@@ -30,9 +35,6 @@ public class ProductsInCartModel {
         this.count = count;
     }
 
-    public ProductModel getProduct() {
-        return product;
-    }
 
     public void setId(Long id) {
         this.id = id;
@@ -42,7 +44,7 @@ public class ProductsInCartModel {
         return id;
     }
 
-    public int getTotalPrice() {
-        return product.price() * count;
+    public Long getProductId() {
+        return productId;
     }
 }
