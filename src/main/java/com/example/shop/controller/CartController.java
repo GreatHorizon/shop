@@ -1,12 +1,16 @@
 package com.example.shop.controller;
 
 
-import com.example.shop.model.CartActionModel;
+import com.example.shop.dto.ChangeCartStateItemRequest;
 import com.example.shop.service.CartService;
 import com.example.shop.utils.ViewNames;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import reactor.core.publisher.Mono;
 
 @Controller
 @RequestMapping("/cart")
@@ -18,30 +22,25 @@ public class CartController {
         this.cartService = cartService;
     }
 
-
     @GetMapping("/items")
-    String getCartItems(Model model) {
-        final var cartItemsDto = cartService.getCartItems();
-
-        model.addAttribute("items", cartItemsDto.items());
-        model.addAttribute("total", cartItemsDto.total());
-
-        return ViewNames.CART;
+    Mono<String> getCartItems(Model model) {
+        return cartService.getCartItems().doOnNext(cartItemsDto -> {
+                    model.addAttribute("items", cartItemsDto.items());
+                    model.addAttribute("total", cartItemsDto.total());
+                })
+                .then(Mono.just(ViewNames.CART));
     }
 
     @PostMapping("/items")
-    String changeCartState(
+    Mono<String> changeCartState(
             Model model,
-            @RequestParam(name = "id") Long id,
-            @RequestParam(name = "action") CartActionModel action
+            @ModelAttribute ChangeCartStateItemRequest request
     ) {
-        cartService.updateCartStateForProduct(id, action);
-
-        final var cartItemsDto = cartService.getCartItems();
-
-        model.addAttribute("items", cartItemsDto.items());
-        model.addAttribute("total", cartItemsDto.total());
-
-        return ViewNames.CART;
+        return cartService.updateCartStateForProduct(request.id(), request.action())
+                .then(Mono.defer(cartService::getCartItems))
+                .doOnNext(cartItemsDto -> {
+                    model.addAttribute("items", cartItemsDto.items());
+                    model.addAttribute("total", cartItemsDto.total());
+                }).then(Mono.just(ViewNames.CART));
     }
 }

@@ -1,18 +1,18 @@
 package com.example.shop.controller;
 
-import com.example.shop.model.CartActionModel;
+import com.example.shop.dto.ChangeCartStateItemRequest;
+import com.example.shop.dto.ChangeCartStateItemsRequest;
 import com.example.shop.model.SortModel;
 import com.example.shop.service.CartService;
 import com.example.shop.service.ProductService;
 import com.example.shop.utils.ViewNames;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.view.RedirectView;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 @Controller
 public class ProductController {
@@ -26,66 +26,66 @@ public class ProductController {
     }
 
     @GetMapping("/items/{id}")
-    String getProduct(Model model, @PathVariable Long id) {
-        final var item = productService.getProduct(id);
-
-        model.addAttribute("item", item);
-
-        return ViewNames.PRODUCT;
+    Mono<String> getProduct(Model model, @PathVariable Long id) {
+        return productService.getProduct(id)
+                .doOnNext((item) -> {
+                    model.addAttribute("item", item);
+                })
+                .then(Mono.just(ViewNames.PRODUCT));
     }
 
     @GetMapping("/items")
-    String getProducts(
+    Mono<String> getProducts(
             Model model,
             @RequestParam(name = "search", required = false) String search,
             @RequestParam(name = "sort", required = false, defaultValue = "NO") SortModel sort,
             @RequestParam(name = "pageSize", required = false, defaultValue = "5") Integer pageSize,
             @RequestParam(name = "pageNumber", required = false, defaultValue = "1") Integer pageNumber
     ) {
-
-        final var productsDto = productService.getProducts(search, sort, pageSize, pageNumber);
-
-        model.addAttribute("items", productsDto.items());
-        model.addAttribute("search", search);
-        model.addAttribute("sort", sort);
-        model.addAttribute("paging", productsDto.pagingDto());
-
-        return ViewNames.PRODUCTS;
+        return productService.getProducts(search, sort, pageSize, pageNumber)
+                .doOnNext((productsDto) -> {
+                    model.addAttribute("items", productsDto.items());
+                    model.addAttribute("search", search);
+                    model.addAttribute("sort", sort);
+                    model.addAttribute("paging", productsDto.pagingDto());
+                })
+                .then(Mono.just(ViewNames.PRODUCTS));
     }
 
 
     @PostMapping("/items")
-    RedirectView changeCartStateFromItems(
-            RedirectAttributes attributes,
-            @RequestParam(name = "id") Long id,
-            @RequestParam(name = "action") CartActionModel action,
-            @RequestParam(name = "search", required = false) String search,
-            @RequestParam(name = "sort", required = false, defaultValue = "NO") SortModel sort,
-            @RequestParam(name = "pageSize", required = false, defaultValue = "5") Integer pageSize,
-            @RequestParam(name = "pageNumber", required = false, defaultValue = "1") Integer pageNumber
+    Mono<Void> changeCartStateFromItems(
+            ServerWebExchange exchange,
+            @ModelAttribute ChangeCartStateItemsRequest request
     ) {
-        cartService.updateCartStateForProduct(id, action);
+        return cartService.updateCartStateForProduct(request.id(), request.action())
+                .then(Mono.defer(() -> {
+                    var uri = UriComponentsBuilder.fromPath("/items")
+                            .queryParam("search", request.search())
+                            .queryParam("sort", request.sort())
+                            .queryParam("pageSize", request.pageSize())
+                            .queryParam("pageNumber", request.pageNumber())
+                            .build()
+                            .toUri();
 
-        attributes.addAttribute("search", search);
-        attributes.addAttribute("sort", sort);
-        attributes.addAttribute("pageSize", pageSize);
-        attributes.addAttribute("pageNumber", pageNumber);
+                    exchange.getResponse().setStatusCode(HttpStatus.FOUND);
+                    exchange.getResponse().getHeaders().setLocation(uri);
 
-        return new RedirectView(ViewNames.PRODUCTS);
+                    return exchange.getResponse().setComplete();
+                }));
     }
 
     @PostMapping("/items/{id}")
-    String changeCartStateFromItem(
-            @PathVariable(name = "id") Long id,
+    Mono<String> changeCartStateFromItem(
             Model model,
-            @RequestParam(name = "action") CartActionModel action
+            @PathVariable(name = "id") Long id,
+            @ModelAttribute ChangeCartStateItemRequest request
     ) {
-        cartService.updateCartStateForProduct(id, action);
-
-        final var item = productService.getProduct(id);
-
-        model.addAttribute("item", item);
-
-        return ViewNames.PRODUCT;
+        return cartService.updateCartStateForProduct(id, request.action())
+                .then(productService.getProduct(id))
+                .doOnNext((item -> {
+                    model.addAttribute("item", item);
+                }))
+                .then(Mono.just(ViewNames.PRODUCT));
     }
 }
