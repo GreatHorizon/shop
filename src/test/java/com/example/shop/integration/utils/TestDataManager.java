@@ -2,33 +2,35 @@ package com.example.shop.integration.utils;
 
 import com.example.shop.model.ProductModel;
 import com.example.shop.model.ProductsInCartModel;
-import jakarta.persistence.EntityManager;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 @Component
 public class TestDataManager {
-    final EntityManager entityManager;
 
-    public TestDataManager(EntityManager entityManager) {
-        this.entityManager = entityManager;
+    private final R2dbcEntityTemplate entityTemplate;
+
+    public TestDataManager(R2dbcEntityTemplate entityTemplate) {
+        this.entityTemplate = entityTemplate;
     }
 
-    public ProductModel insertProduct(String name, String description, Integer price) {
-        final var product = new ProductModel();
+    public Mono<ProductModel> insertProduct(String name, String description, Integer price) {
+        ProductModel product = new ProductModel();
 
         product.setTitle(name != null ? name : "Product 1");
         product.setDescription(description != null ? description : "desc");
         product.setMainImagePath("path");
         product.setPrice(price != null ? price : 1000);
 
-        entityManager.persist(product);
-
-        return product;
+        return entityTemplate.insert(ProductModel.class)
+                .using(product);
     }
 
-    public void addProductToCart(ProductModel product, int count) {
-        final var productInCartModel = new ProductsInCartModel(count, product);
+    public Mono<ProductsInCartModel> addProductToCart(ProductModel product, int count) {
+        ProductsInCartModel productInCartModel = new ProductsInCartModel(count, product.id());
 
-        entityManager.persist(productInCartModel);
+        return entityTemplate.insert(ProductsInCartModel.class)
+                .using(productInCartModel);
     }
 }

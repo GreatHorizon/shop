@@ -1,261 +1,311 @@
 package com.example.shop.integration.mvc;
 
 import com.example.shop.BaseTestContainerTest;
-import com.example.shop.dto.PagingDto;
-import com.example.shop.dto.ProductDto;
+import com.example.shop.integration.utils.PostgreSQLTestContainer;
 import com.example.shop.integration.utils.TestDataManager;
+import com.example.shop.model.OrderModel;
 import com.example.shop.model.ProductModel;
-import com.example.shop.model.SortModel;
-import com.example.shop.utils.ViewNames;
-import jakarta.persistence.EntityManager;
+import com.example.shop.model.ProductsInCartModel;
+import com.example.shop.model.ProductsInOrderModel;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.testcontainers.context.ImportTestcontainers;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import org.springframework.data.relational.core.query.Criteria;
+import org.springframework.data.relational.core.query.Query;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.*;
 
-import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@SpringBootTest()
-@Transactional
-@AutoConfigureMockMvc
-public class ProductControllerTest extends BaseTestContainerTest {
-    @Autowired
-    private MockMvc mockMvc;
+@SpringBootTest
+@Testcontainers
+@ImportTestcontainers(PostgreSQLTestContainer.class)
+@AutoConfigureWebTestClient
+class ProductControllerTest extends BaseTestContainerTest {
 
     @Autowired
-    private TestDataManager testEntityManager;
+    private WebTestClient webTestClient;
 
     @Autowired
-    private EntityManager entityManager;
+    private TestDataManager testDataManager;
 
+    @Autowired
+    private R2dbcEntityTemplate entityTemplate;
 
-    @Test
-    void givenNoItems_whenGetProducts_thenEmpty() throws Exception {
-        mockMvc.perform(get("/items")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5"))
-                .andExpect(status().isOk())
-                .andExpect(view().name(ViewNames.PRODUCTS))
-                .andExpect(model().attributeExists("items"))
-                .andExpect(model().attribute("items", hasSize(0)));
+    @BeforeEach
+    void setUp() {
+        entityTemplate.delete(ProductsInOrderModel.class)
+                .all()
+                .then(entityTemplate.delete(OrderModel.class).all())
+                .then(entityTemplate.delete(ProductsInCartModel.class).all())
+                .then(entityTemplate.delete(ProductModel.class).all())
+                .block();
     }
 
     @Test
-    void givenOneItem_whenGetProducts_thenOneItem() throws Exception {
-        testEntityManager.insertProduct("Product 2", null, null);
-        testEntityManager.insertProduct("Product 1", null, null);
-
-        mockMvc.perform(get("/items")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5"))
-                .andExpect(status().isOk())
-                .andExpect(view().name(ViewNames.PRODUCTS))
-                .andExpect(model().attributeExists("items"))
-                .andExpect(model().attribute("items", hasSize(1)))
-                .andExpect(model().attribute("items", everyItem(not(empty()))))
-                .andDo(result -> {
-                    // Cast model attribute
-                    final var items =
-                            (List<List<ProductDto>>) result.getModelAndView().getModel().get("items");
-
-                    assertEquals(1, items.size());
-
-                    final var inner = items.get(0);
-                    assertEquals(2, inner.size());
-
-                    assertEquals("Product 2", inner.get(0).title());
-                    assertEquals("Product 1", inner.get(1).title());
-                })
-                .andExpect(model().attribute("search", nullValue()))
-                .andExpect(model().attribute("sort", equalTo(SortModel.NO)))
-                .andDo(result -> {
-                    PagingDto paging = (PagingDto) result.getModelAndView().getModel().get("paging");
-
-                    assertEquals(5, paging.pageSize());
-                    assertEquals(1, paging.pageNumber());
-                    assertFalse(paging.hasPrevious());
-                    assertFalse(paging.hasNext());
+    void givenNoItems_whenGetProducts_thenEmpty() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("pageNumber", "1")
+                        .queryParam("pageSize", "5")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertFalse(body.contains("Product 1"));
+                    assertFalse(body.contains("Product 2"));
                 });
     }
 
     @Test
-    void givenAlphaSort_whenGetProducts_thenOrderByTitle() throws Exception {
-        testEntityManager.insertProduct("Product 2", null, null);
-        testEntityManager.insertProduct("Product 1", null, null);
+    void givenTwoItems_whenGetProducts_thenReturnBothProducts() {
+        testDataManager.insertProduct("Product 2", null, 1000).block();
+        testDataManager.insertProduct("Product 1", null, 200).block();
 
-        mockMvc.perform(get("/items")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5")
-                        .param("sort", "ALPHA"))
-                .andExpect(status().isOk())
-                .andExpect(view().name(ViewNames.PRODUCTS))
-                .andExpect(model().attributeExists("items"))
-                .andExpect(model().attribute("items", hasSize(1)))
-                .andDo(result -> {
-                    // Cast model attribute
-                    final var items =
-                            (List<List<ProductDto>>) result.getModelAndView().getModel().get("items");
-
-                    assertEquals(1, items.size());
-
-                    final var inner = items.get(0);
-                    assertEquals(2, inner.size());
-
-                    assertEquals("Product 1", inner.get(0).title());
-                    assertEquals("Product 2", inner.get(1).title());
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("pageNumber", "1")
+                        .queryParam("pageSize", "5")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertTrue(body.contains("Product 1"));
+                    assertTrue(body.contains("Product 2"));
                 });
     }
 
     @Test
-    void givenPriceSort_whenGetProducts_thenOrderByPrice() throws Exception {
-        testEntityManager.insertProduct("Product 2", null, 1000);
-        testEntityManager.insertProduct("Product 1", null, 200);
+    void givenAlphaSort_whenGetProducts_thenReturnSortedPage() {
+        testDataManager.insertProduct("Product 2", null, 1000).block();
+        testDataManager.insertProduct("Product 1", null, 200).block();
 
-        mockMvc.perform(get("/items")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5")
-                        .param("sort", "PRICE"))
-                .andExpect(status().isOk())
-                .andExpect(view().name(ViewNames.PRODUCTS))
-                .andExpect(model().attributeExists("items"))
-                .andExpect(model().attribute("items", hasSize(1)))
-                .andDo(result -> {
-                    // Cast model attribute
-                    final var items =
-                            (List<List<ProductDto>>) result.getModelAndView().getModel().get("items");
-
-                    assertEquals(1, items.size());
-
-                    final var inner = items.get(0);
-                    assertEquals(2, inner.size());
-
-                    assertEquals("Product 1", inner.get(0).title());
-                    assertEquals("Product 2", inner.get(1).title());
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("pageNumber", "1")
+                        .queryParam("pageSize", "5")
+                        .queryParam("sort", "ALPHA")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertTrue(body.contains("Product 1"));
+                    assertTrue(body.contains("Product 2"));
                 });
     }
 
     @Test
-    void givenSearch_whenGetProducts_thenFilterByTitleOrDesc() throws Exception {
-        testEntityManager.insertProduct("Product 2", null, 1000);
-        testEntityManager.insertProduct("Product 1", null, 200);
-        testEntityManager.insertProduct("Product 3", "2", 200);
+    void givenPriceSort_whenGetProducts_thenReturnSortedPage() {
+        testDataManager.insertProduct("Product 2", null, 1000).block();
+        testDataManager.insertProduct("Product 1", null, 200).block();
 
-        mockMvc.perform(get("/items")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5")
-                        .param("search", "2")
-                        .param("sort", "PRICE"))
-                .andExpect(status().isOk())
-                .andExpect(view().name(ViewNames.PRODUCTS))
-                .andExpect(model().attributeExists("items"))
-                .andDo(result -> {
-                    final var items =
-                            (List<List<ProductDto>>) result.getModelAndView().getModel().get("items");
-
-                    assertEquals(1, items.size());
-
-                    final var inner = items.get(0);
-                    assertEquals(2, inner.size());
-
-                    assertEquals("Product 3", inner.get(0).title());
-                    assertEquals("Product 2", inner.get(1).title());
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("pageNumber", "1")
+                        .queryParam("pageSize", "5")
+                        .queryParam("sort", "PRICE")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertTrue(body.contains("Product 1"));
+                    assertTrue(body.contains("Product 2"));
                 });
     }
 
     @Test
-    void givenExistingId_whenGetProduct_thenReturnProductDto() throws Exception {
-        final var model = testEntityManager.insertProduct("Product 2", "desc test", 1000);
+    void givenSearch_whenGetProducts_thenFilterByTitleOrDesc() {
+        testDataManager.insertProduct("Product 2", null, 1000).block();
+        testDataManager.insertProduct("Product 1", null, 200).block();
+        testDataManager.insertProduct("Product 3", "2", 200).block();
 
-
-        mockMvc.perform(get("/items/" + model.id()))
-                .andExpect(status().isOk())
-                .andExpect(view().name("item"))
-                .andExpect(model().attributeExists("item"))
-                .andDo(result -> {
-                    final var item = (ProductDto) result.getModelAndView().getModel().get("item");
-
-                    assertEquals("Product 2", item.title());
-                    assertEquals("desc test", item.description());
-                    assertEquals(1000, item.price());
-                    assertEquals("path", item.imgPath());
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("pageNumber", "1")
+                        .queryParam("pageSize", "5")
+                        .queryParam("search", "2")
+                        .queryParam("sort", "PRICE")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertTrue(body.contains("Product 2"));
+                    assertTrue(body.contains("Product 3"));
+                    assertFalse(body.contains("Product 1"));
                 });
     }
 
     @Test
-    void givenUnknownId_whenGetProduct_thenReturn404() throws Exception {
-        mockMvc.perform(get("/items/1"))
-                .andExpect(status().isNotFound());
+    void givenExistingId_whenGetProduct_thenReturnProductPage() {
+        ProductModel model = testDataManager
+                .insertProduct("Product 2", "desc test", 1000)
+                .block();
+
+        assertNotNull(model);
+
+        webTestClient.get()
+                .uri("/items/{id}", model.getId())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertTrue(body.contains("Product 2"));
+                    assertTrue(body.contains("desc test"));
+                    assertTrue(body.contains("1000"));
+                    assertTrue(body.contains("path"));
+                });
     }
 
     @Test
-    void givenIdAndPlus_whenChangeCartStateFromItems_thenRedirectIncrement() throws Exception {
-        final var model = testEntityManager.insertProduct("Product 2", "desc test", 1000);
+    void givenUnknownId_whenGetProduct_thenReturn404() {
+        webTestClient.get()
+                .uri("/items/{id}", 1L)
+                .exchange()
+                .expectStatus().isNotFound();
+    }
 
-        mockMvc.perform(
-                        post("/items")
-                                .param("id", String.valueOf(model.id()))
-                                .param("action", "PLUS")
-                                .param("search", "test")
-                                .param("sort", "PRICE")
-                                .param("pageNumber", "1")
-                                .param("pageSize", "5")
+    @Test
+    void givenIdAndPlus_whenChangeCartStateFromItems_thenRedirectIncrement() {
+        ProductModel model = testDataManager
+                .insertProduct("Product 2", "desc test", 1000)
+                .block();
+
+        assertNotNull(model);
+
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue(
+                        "id=" + model.getId()
+                                + "&action=PLUS"
+                                + "&search=test"
+                                + "&sort=PRICE"
+                                + "&pageNumber=1"
+                                + "&pageSize=5"
                 )
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("items?search=test&sort=PRICE&pageSize=5&pageNumber=1"));
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().valueEquals(
+                        "Location",
+                        "/items?search=test&sort=PRICE&pageSize=5&pageNumber=1"
+                );
 
-        entityManager.flush();
-        entityManager.clear();
+        ProductsInCartModel cartItem = entityTemplate
+                .select(ProductsInCartModel.class)
+                .matching(Query.query(Criteria.where("product_id").is(model.getId())))
+                .one()
+                .block();
 
-        ProductModel product = entityManager.find(ProductModel.class, model.id());
-        assertEquals(1, product.getProductsInCartModel().getCount());
+        assertNotNull(cartItem);
+        assertEquals(model.getId(), cartItem.getProductId());
+        assertEquals(1, cartItem.getCount());
     }
 
     @Test
-    void givenIdAndRemove_whenChangeCartStateFromItems_thenRedirectWithDecrement() throws Exception {
-        final var model = testEntityManager.insertProduct("Product 2", "desc test", 1000);
+    void givenIdAndRemove_whenChangeCartStateFromItems_thenRedirectWithDecrement() {
+        ProductModel model = testDataManager
+                .insertProduct("Product 2", "desc test", 1000)
+                .block();
 
-        mockMvc.perform(post("/items")
-                .param("id", String.valueOf(model.id()))
-                .param("action", "MINUS")
-        );
+        assertNotNull(model);
 
-        mockMvc.perform(post("/items")
-                        .param("id", String.valueOf(model.id()))
-                        .param("action", "MINUS")
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + model.getId() + "&action=PLUS")
+                .exchange()
+                .expectStatus().is3xxRedirection();
+
+        ProductsInCartModel created = entityTemplate
+                .select(ProductsInCartModel.class)
+                .matching(Query.query(Criteria.where("product_id").is(model.getId())))
+                .one()
+                .block();
+
+        assertNotNull(created);
+        assertEquals(1, created.getCount());
+
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue(
+                        "id=" + model.getId()
+                                + "&action=MINUS"
+                                + "&search=test"
+                                + "&sort=PRICE"
+                                + "&pageNumber=1"
+                                + "&pageSize=5"
                 )
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("items?sort=NO&pageSize=5&pageNumber=1"));
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().valueEquals(
+                        "Location",
+                        "/items?search=test&sort=PRICE&pageSize=5&pageNumber=1"
+                );
 
-        entityManager.flush();
-        entityManager.clear();
+        ProductsInCartModel cartItemAfterMinus = entityTemplate
+                .select(ProductsInCartModel.class)
+                .matching(Query.query(Criteria.where("product_id").is(model.getId())))
+                .one()
+                .block();
 
-        ProductModel product = entityManager.find(ProductModel.class, model.id());
-        assertEquals(null, product.getProductsInCartModel());
+        assertNull(cartItemAfterMinus);
     }
 
     @Test
-    void givenIdAndPlus_whenChangeCartStateFromItem_thenRedirectIncrement() throws Exception {
-        final var model = testEntityManager.insertProduct("Product 2", "desc test", 1000);
+    void givenIdAndPlus_whenChangeCartStateFromItem_thenRenderProductPage() {
+        ProductModel model = testDataManager
+                .insertProduct("Product 2", "desc test", 1000)
+                .block();
 
-        mockMvc.perform(
-                        post("/items/" + model.id())
-                                .param("action", "PLUS"))
-                .andExpect(status().isOk())
-                .andExpect(view().name(ViewNames.PRODUCT));
+        assertNotNull(model);
 
-        entityManager.flush();
-        entityManager.clear();
+        webTestClient.post()
+                .uri("/items/{id}?action=PLUS", model.getId())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .value(body -> {
+                    assertNotNull(body);
+                    assertTrue(body.contains("Product 2"));
+                });
 
-        ProductModel product = entityManager.find(ProductModel.class, model.id());
-        assertEquals(1, product.getProductsInCartModel().getCount());
+        ProductsInCartModel cartItem = entityTemplate
+                .select(ProductsInCartModel.class)
+                .matching(Query.query(Criteria.where("product_id").is(model.getId())))
+                .one()
+                .block();
+
+        assertNotNull(cartItem);
+        assertEquals(model.getId(), cartItem.getProductId());
+        assertEquals(1, cartItem.getCount());
     }
 }
