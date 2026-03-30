@@ -8,4 +8,8 @@ public record ProductDto(
         int price,
         int count
 ) {
+
+    public ProductDto withCount(Integer count) {
+        return new ProductDto(id, title, description, imgPath, price, count);
+    }
 }
