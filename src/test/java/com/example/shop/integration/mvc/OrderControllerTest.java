@@ -1,84 +1,86 @@
 package com.example.shop.integration.mvc;
 
 import com.example.shop.BaseTestContainerTest;
-import com.example.shop.dto.OrderDto;
+import com.example.shop.integration.utils.PostgreSQLTestContainer;
 import com.example.shop.integration.utils.TestDataManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.testcontainers.context.ImportTestcontainers;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-@Transactional
-@AutoConfigureMockMvc
+@Testcontainers
+@ImportTestcontainers(PostgreSQLTestContainer.class)
+@AutoConfigureWebTestClient
 public class OrderControllerTest extends BaseTestContainerTest {
+
     @Autowired
-    private MockMvc mockMvc;
+    private WebTestClient webTestClient;
 
     @Autowired
     private TestDataManager testEntityManager;
 
     @Test
-    void givenProductInCart_whenCreateOrder_thenRedirect() throws Exception {
-        final var product1 = testEntityManager.insertProduct("name", null, 100);
-        final var product2 = testEntityManager.insertProduct("name", null, 500);
-        final var product3 = testEntityManager.insertProduct("name", null, 55);
+    void givenProductInCart_whenCreateOrder_thenRedirect() {
+        final var product1 = testEntityManager.insertProduct("name", null, 100).block();
+        final var product2 = testEntityManager.insertProduct("name", null, 500).block();
+        final var product3 = testEntityManager.insertProduct("name", null, 55).block();
 
-        testEntityManager.addProductToCart(product1, 1);
-        testEntityManager.addProductToCart(product2, 1);
-        testEntityManager.addProductToCart(product3, 2);
+        testEntityManager.addProductToCart(product1, 1).block();
+        testEntityManager.addProductToCart(product2, 1).block();
+        testEntityManager.addProductToCart(product3, 2).block();
 
-        mockMvc.perform(post("/buy"))
-                .andExpect(status().is3xxRedirection());
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection();
     }
 
     @Test
-    void givenProductId_whenGetOrder_thenReturnOrder() throws Exception {
-        final var product = testEntityManager.insertProduct("name", null, 100);
+    void givenProductId_whenGetOrder_thenReturnOrder() {
+        final var product = testEntityManager.insertProduct("name", null, 100).block();
 
-        testEntityManager.addProductToCart(product, 1);
+        testEntityManager.addProductToCart(product, 1).block();
 
-        mockMvc.perform(post("/buy"));
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection();
 
-        mockMvc.perform(get("/orders/1"))
-                .andExpect(status().isOk())
-                .andExpect(model().attributeExists("order"))
-                .andDo((result) -> {
-                    final var order = (OrderDto) result.getModelAndView().getModel().get("order");
-
-                    assertEquals(1, order.items().size());
-                    assertEquals(100, order.totalSum());
+        webTestClient.get()
+                .uri("/orders/1")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> {
+                    assertTrue(body.contains("100"));
+                    assertTrue(body.contains("name"));
                 });
     }
 
     @Test
-    void givenNonEmptyList_whenGetOrders_thenReturnOrders() throws Exception {
-        final var product1 = testEntityManager.insertProduct("name", null, 100);
-        final var product2 = testEntityManager.insertProduct("name", null, 500);
+    void givenNonEmptyList_whenGetOrders_thenReturnOrders() {
+        final var product1 = testEntityManager.insertProduct("name", null, 100).block();
+        final var product2 = testEntityManager.insertProduct("name", null, 500).block();
 
-        testEntityManager.addProductToCart(product1, 1);
-        testEntityManager.addProductToCart(product2, 2);
+        testEntityManager.addProductToCart(product1, 1).block();
+        testEntityManager.addProductToCart(product2, 2).block();
 
-        mockMvc.perform(post("/buy"));
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection();
 
-        mockMvc.perform(get("/orders"))
-                .andExpect(status().isOk())
-                .andExpect(model().attributeExists("orders"))
-                .andDo((result) -> {
-                    final var orders = (List<OrderDto>) result.getModelAndView().getModel().get("orders");
-
-                    assertEquals(1, orders.size());
-                    assertEquals(1100, orders.getFirst().totalSum());
-                });
+        webTestClient.get()
+                .uri("/orders")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertTrue(body.contains("1100")));
     }
 }

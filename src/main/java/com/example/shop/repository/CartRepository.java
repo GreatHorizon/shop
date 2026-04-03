@@ -1,13 +1,14 @@
 package com.example.shop.repository;
 
 import com.example.shop.model.ProductsInCartModel;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.r2dbc.repository.R2dbcRepository;
+import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
-import java.util.Optional;
+@Repository
+public interface CartRepository extends R2dbcRepository<ProductsInCartModel, Long> {
+    Mono<ProductsInCartModel> findByProductId(Long productId);
 
-public interface CartRepository extends JpaRepository<ProductsInCartModel, Long> {
-    Optional<ProductsInCartModel> findByProduct_Id(Long productId);
-
-    List<ProductsInCartModel> findAllByOrderById();
+    Flux<ProductsInCartModel> findAllByOrderById();
 }

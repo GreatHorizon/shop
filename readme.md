@@ -93,7 +93,7 @@ docker run -d \
 docker run -d \
   --name shop-app \
   --network shop-network \
-  -e DB_URL=jdbc:postgresql://shop-db:5432/shop \
+  -e DB_URL=r2dbc:postgresql://shop-db:5432/shop \
   -e DB_USER=postgres \
   -e DB_PASSWORD=postgres \
   -p 8080:8080 \

@@ -1,11 +1,14 @@
 package com.example.shop.unit.service;
 
+import com.example.shop.dto.OrderDto;
 import com.example.shop.model.OrderModel;
 import com.example.shop.model.ProductModel;
 import com.example.shop.model.ProductsInCartModel;
 import com.example.shop.model.ProductsInOrderModel;
 import com.example.shop.repository.CartRepository;
 import com.example.shop.repository.OrderRepository;
+import com.example.shop.repository.ProductRepository;
+import com.example.shop.repository.ProductsInOrderRepository;
 import com.example.shop.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,21 +17,20 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import java.util.List;
+import java.util.Comparator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest(
-        classes = {
-                OrderService.class,
-                OrderRepository.class,
-                CartRepository.class
-        }
-)
-public class OrderServiceTest {
+@SpringBootTest(classes = OrderService.class)
+class OrderServiceTest {
+
     @Autowired
     private OrderService orderService;
 
@@ -38,142 +40,196 @@ public class OrderServiceTest {
     @MockitoBean
     private CartRepository cartRepository;
 
+    @MockitoBean
+    private ProductsInOrderRepository productsInOrderRepository;
+
+    @MockitoBean
+    private ProductRepository productRepository;
 
     @BeforeEach
     void resetAll() {
-        Mockito.reset(orderRepository);
-        Mockito.reset(cartRepository);
+        Mockito.reset(orderRepository, cartRepository, productsInOrderRepository, productRepository);
     }
 
     @Test
     void createOrder_shouldCreateOrderFromCartItems() {
-        // Given
+        ProductsInCartModel cartItem1 = new ProductsInCartModel();
+        cartItem1.setId(1L);
+        cartItem1.setProductId(1L);
+        cartItem1.setCount(2);
+
+        ProductsInCartModel cartItem2 = new ProductsInCartModel();
+        cartItem2.setId(2L);
+        cartItem2.setProductId(2L);
+        cartItem2.setCount(1);
+
         ProductModel product1 = new ProductModel();
         product1.setId(1L);
         product1.setTitle("Product 1");
+        product1.setDescription("desc 1");
+        product1.setMainImagePath("path 1");
         product1.setPrice(100);
 
         ProductModel product2 = new ProductModel();
         product2.setId(2L);
         product2.setTitle("Product 2");
+        product2.setDescription("desc 2");
+        product2.setMainImagePath("path 2");
         product2.setPrice(200);
 
-        ProductsInCartModel cartItem1 = new ProductsInCartModel(2, product1);
-        ProductsInCartModel cartItem2 = new ProductsInCartModel(1, product2);
+        OrderModel savedOrder = new OrderModel(1L);
 
-        List<ProductsInCartModel> cartItems = List.of(cartItem1, cartItem2);
+        when(cartRepository.findAll())
+                .thenReturn(Flux.just(cartItem1, cartItem2));
 
-        when(cartRepository.findAll()).thenReturn(cartItems);
+        when(productRepository.findById(1L))
+                .thenReturn(Mono.just(product1));
+        when(productRepository.findById(2L))
+                .thenReturn(Mono.just(product2));
 
-        OrderModel savedOrder = new OrderModel();
-        savedOrder.setId(1L);
+        when(orderRepository.save(any(OrderModel.class)))
+                .thenReturn(Mono.just(savedOrder));
 
-        when(orderRepository.save(any(OrderModel.class))).thenReturn(savedOrder);
+        when(productsInOrderRepository.save(any(ProductsInOrderModel.class)))
+                .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        Long orderId = orderService.createOrder();
-
-        assertEquals(1L, orderId);
+        StepVerifier.create(orderService.createOrder())
+                .expectNext(1L)
+                .verifyComplete();
 
         ArgumentCaptor<OrderModel> orderCaptor = ArgumentCaptor.forClass(OrderModel.class);
         verify(orderRepository).save(orderCaptor.capture());
 
         OrderModel capturedOrder = orderCaptor.getValue();
         assertNotNull(capturedOrder);
-        assertEquals(2, capturedOrder.getProducts().size());
 
-        ProductsInOrderModel orderProduct1 = capturedOrder.getProductsInOrderModels().getFirst();
-        assertEquals(2, orderProduct1.getCount());
-        assertEquals(product1, orderProduct1.getProduct());
-        assertEquals(capturedOrder, orderProduct1.getOrder());
+        ArgumentCaptor<ProductsInOrderModel> productsCaptor =
+                ArgumentCaptor.forClass(ProductsInOrderModel.class);
 
-        ProductsInOrderModel orderProduct2 = capturedOrder.getProductsInOrderModels().get(1);
-        assertEquals(1, orderProduct2.getCount());
-        assertEquals(product2, orderProduct2.getProduct());
-        assertEquals(capturedOrder, orderProduct2.getOrder());
+        verify(productsInOrderRepository, times(2)).save(productsCaptor.capture());
+
+        var savedProducts = productsCaptor.getAllValues()
+                .stream()
+                .sorted(Comparator.comparing(ProductsInOrderModel::getProductId))
+                .toList();
+
+        assertEquals(2, savedProducts.size());
+
+        assertEquals(1L, savedProducts.get(0).getProductId());
+        assertEquals(2, savedProducts.get(0).getCount());
+
+        assertEquals(2L, savedProducts.get(1).getProductId());
+        assertEquals(1, savedProducts.get(1).getCount());
+
+        verify(cartRepository).findAll();
+        verify(productRepository).findById(1L);
+        verify(productRepository).findById(2L);
     }
 
     @Test
     void getOrders_shouldReturnAllOrdersAsDtos() {
-        // Given
-        OrderModel order1 = new OrderModel(
-                1L,
-                List.of(
-                        new ProductsInOrderModel(
-                                100,
-                                new ProductModel(
-                                        1L,
-                                        "Product 1",
-                                        "some desc",
-                                        "path",
-                                        100000
-                                )
-                        )
-                )
-        );
+        OrderModel order1 = new OrderModel(1L);
+        OrderModel order2 = new OrderModel(2L);
 
-        final var productInCart = new ProductsInCartModel(100, order1.getProducts().getFirst());
+        ProductsInOrderModel order1Item = new ProductsInOrderModel();
+        order1Item.setId(101L);
+        order1Item.setOrderId(1L);
+        order1Item.setProductId(10L);
+        order1Item.setCount(2);
 
-        order1.getProducts().getFirst().setProductInCartReference(productInCart);
+        ProductsInOrderModel order2Item = new ProductsInOrderModel();
+        order2Item.setId(102L);
+        order2Item.setOrderId(2L);
+        order2Item.setProductId(20L);
+        order2Item.setCount(3);
 
-        final var order2 = new OrderModel(2L,
-                List.of(
-                        new ProductsInOrderModel(
-                                100,
-                                new ProductModel(
-                                        1L,
-                                        "Product 1",
-                                        "some desc",
-                                        "path",
-                                        100000
-                                )
-                        )
-                )
-        );
+        ProductModel product1 = new ProductModel();
+        product1.setId(10L);
+        product1.setTitle("Product 1");
+        product1.setDescription("some desc");
+        product1.setMainImagePath("path");
+        product1.setPrice(1000);
 
-        List<OrderModel> orders = List.of(order1, order2);
+        ProductModel product2 = new ProductModel();
+        product2.setId(20L);
+        product2.setTitle("Product 2");
+        product2.setDescription("some desc");
+        product2.setMainImagePath("path");
+        product2.setPrice(500);
 
-        when(orderRepository.findAll()).thenReturn(orders);
+        when(orderRepository.findAll())
+                .thenReturn(Flux.just(order1, order2));
 
-        final var ordersDtos = orderService.getOrders();
+        when(productsInOrderRepository.findByOrderId(1L))
+                .thenReturn(Flux.just(order1Item));
+        when(productsInOrderRepository.findByOrderId(2L))
+                .thenReturn(Flux.just(order2Item));
 
-        assertEquals(2, ordersDtos.size());
-        assertEquals(1L, ordersDtos.get(0).id());
-        assertEquals(2L, ordersDtos.get(1).id());
-        assertEquals(100, ordersDtos.get(0).items().getFirst().count());
+        when(productRepository.getProductModelById(10L))
+                .thenReturn(Mono.just(product1));
+        when(productRepository.getProductModelById(20L))
+                .thenReturn(Mono.just(product2));
+
+        StepVerifier.create(orderService.getOrders().collectList())
+                .assertNext(orderDtos -> {
+                    assertEquals(2, orderDtos.size());
+
+                    OrderDto first = orderDtos.get(0);
+                    OrderDto second = orderDtos.get(1);
+
+                    assertEquals(1L, first.id());
+                    assertEquals(1, first.items().size());
+                    assertEquals(2, first.items().getFirst().count());
+
+                    assertEquals(2L, second.id());
+                    assertEquals(1, second.items().size());
+                    assertEquals(3, second.items().getFirst().count());
+                })
+                .verifyComplete();
 
         verify(orderRepository).findAll();
-        verifyNoMoreInteractions(orderRepository);
+        verify(productsInOrderRepository).findByOrderId(1L);
+        verify(productsInOrderRepository).findByOrderId(2L);
+        verify(productRepository).getProductModelById(10L);
+        verify(productRepository).getProductModelById(20L);
     }
 
     @Test
     void getOrder_shouldReturnOrderByIdAsDto() {
-        OrderModel order = new OrderModel(
-                1L,
-                List.of(
-                        new ProductsInOrderModel(
-                                100,
-                                new ProductModel(
-                                        1L,
-                                        "Product 1",
-                                        "some desc",
-                                        "path",
-                                        100000
-                                )
-                        )
-                )
-        );
+        OrderModel order = new OrderModel(1L);
 
-        final var productInCart = new ProductsInCartModel(100, order.getProducts().getFirst());
+        ProductsInOrderModel orderItem = new ProductsInOrderModel();
+        orderItem.setId(201L);
+        orderItem.setOrderId(1L);
+        orderItem.setProductId(100L);
+        orderItem.setCount(100);
 
-        order.getProducts().getFirst().setProductInCartReference(productInCart);
+        ProductModel product = new ProductModel();
+        product.setId(100L);
+        product.setTitle("Product 1");
+        product.setDescription("some desc");
+        product.setMainImagePath("path");
+        product.setPrice(100000);
 
-        when(orderRepository.getOrderById(order.getId())).thenReturn(order);
+        when(orderRepository.getOrderById(1L))
+                .thenReturn(Mono.just(order));
 
-        final var ordersDto = orderService.getOrder(order.getId());
+        when(productsInOrderRepository.findByOrderId(1L))
+                .thenReturn(Flux.just(orderItem));
 
-        assertEquals(1L, ordersDto.id());
-        assertEquals(1, ordersDto.items().size());
-        assertEquals(100, ordersDto.items().getFirst().count());
+        when(productRepository.getProductModelById(100L))
+                .thenReturn(Mono.just(product));
+
+        StepVerifier.create(orderService.getOrder(1L))
+                .assertNext(orderDto -> {
+                    assertEquals(1L, orderDto.id());
+                    assertEquals(1, orderDto.items().size());
+                    assertEquals(100, orderDto.items().getFirst().count());
+                })
+                .verifyComplete();
+
+        verify(orderRepository).getOrderById(1L);
+        verify(productsInOrderRepository).findByOrderId(1L);
+        verify(productRepository).getProductModelById(100L);
     }
-
 }

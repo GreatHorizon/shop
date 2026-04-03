@@ -1,20 +1,21 @@
 spring:
   application:
     name: shop
-  datasource:
-    driver-class-name: org.postgresql.Driver
+  r2dbc:
     url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
 
+
   liquibase:
     enabled: true
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: true
 
 server:
   port: 8080
   address: 0.0.0.0
+
+
+logging:
+  level:
+    org.springframework.r2dbc: DEBUG
+    io.r2dbc.postgresql: DEBUG

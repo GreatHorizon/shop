@@ -3,13 +3,16 @@ package com.example.shop.controller;
 import com.example.shop.service.CartService;
 import com.example.shop.service.OrderService;
 import com.example.shop.utils.ViewNames;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.view.RedirectView;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 @Controller
 public class OrderController {
@@ -23,34 +26,43 @@ public class OrderController {
     }
 
     @PostMapping("/buy")
-    RedirectView createOrder() {
-        final var orderId = orderService.createOrder();
+    Mono<Void> createOrder(ServerWebExchange exchange) {
+        return orderService.createOrder()
+                .flatMap(orderId -> cartService.cleanCart().thenReturn(orderId))
+                .doOnNext((orderId) -> {
+                    final var uri = UriComponentsBuilder
+                            .fromPath(String.format("/orders/%s", orderId))
+                            .queryParam("newOrder", true)
+                            .build();
 
-        cartService.cleanCart();
-
-        return new RedirectView(String.format("/orders/%s?newOrder=true", orderId));
+                    exchange.getResponse().setStatusCode(HttpStatus.FOUND);
+                    exchange.getResponse().getHeaders().setLocation(uri.toUri());
+                })
+                .then(exchange.getResponse().setComplete());
     }
 
     @GetMapping("/orders")
-    String getOrders(Model model) {
-        final var orders = orderService.getOrders();
-
-        model.addAttribute("orders", orders);
-
-        return ViewNames.ORDERS;
+    Mono<String> getOrders(Model model) {
+        return orderService.getOrders()
+                .collectList()
+                .doOnNext((orders) -> {
+                    model.addAttribute("orders", orders);
+                })
+                .then(Mono.just(ViewNames.ORDERS));
     }
 
     @GetMapping("/orders/{id}")
-    String getOrder(
+    Mono<String> getOrder(
             @PathVariable(name = "id") Long id,
             @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,
             Model model
     ) {
-        final var order = orderService.getOrder(id);
-
-        model.addAttribute("order", order);
-        model.addAttribute("newOrder", newOrder);
-
-        return ViewNames.ORDER;
+        return orderService.getOrder(id)
+                .doOnNext((order) -> {
+                            model.addAttribute("order", order);
+                            model.addAttribute("newOrder", newOrder);
+                        }
+                )
+                .then(Mono.just(ViewNames.ORDER));
     }
 }
