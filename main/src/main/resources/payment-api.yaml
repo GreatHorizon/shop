@@ -1,0 +1,54 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.0.0
+paths:
+  /balance:
+    get:
+      tags:
+        - Balance
+      summary: Get balance of user
+      operationId: getBalance
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+  /pay:
+    post:
+      tags:
+        - Pay
+      summary: Perform payment
+      operationId: makePayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        "200":
+          description: Payment processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        balance: { type: integer, format: int32 }
+    PaymentRequest:
+      type: object
+      properties:
+        amount: { type: integer, format: int32 }
+      required: [ amount ]
+    PaymentResponse:
+      type: object
+      properties:
+        status: { type: string }
+        newBalance: { type: integer, format: int32 }
