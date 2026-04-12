@@ -25,4 +25,4 @@ replay_pid*
 /.idea/
 /.mvn/
 /target/
-/uploads/
+/main/uploads/

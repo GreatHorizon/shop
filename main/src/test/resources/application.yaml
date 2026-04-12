@@ -1,0 +1,26 @@
+spring:
+  cache:
+    type: none
+  data:
+    redis:
+      repositories:
+        enabled: false
+
+  sql:
+    init:
+      mode: always
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+main:
+  uploads-path: uploads/
+
+payment:
+  base-url: http://localhost:8081
+
+logging:
+  level:
+    liquibase: DEBUG
+    org.springframework.boot.autoconfigure.liquibase: DEBUG
