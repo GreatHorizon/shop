@@ -1,15 +1,15 @@
-package com.example.shop.unit.service;
+package com.example.main.unit.service;
 
-import com.example.shop.dto.OrderDto;
-import com.example.shop.model.OrderModel;
-import com.example.shop.model.ProductModel;
-import com.example.shop.model.ProductsInCartModel;
-import com.example.shop.model.ProductsInOrderModel;
-import com.example.shop.repository.CartRepository;
-import com.example.shop.repository.OrderRepository;
-import com.example.shop.repository.ProductRepository;
-import com.example.shop.repository.ProductsInOrderRepository;
-import com.example.shop.service.OrderService;
+import com.example.main.dto.OrderDto;
+import com.example.main.model.OrderModel;
+import com.example.main.model.ProductModel;
+import com.example.main.model.ProductsInCartModel;
+import com.example.main.model.ProductsInOrderModel;
+import com.example.main.repository.CartRepository;
+import com.example.main.repository.OrderRepository;
+import com.example.main.repository.ProductRepository;
+import com.example.main.repository.ProductsInOrderRepository;
+import com.example.main.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
