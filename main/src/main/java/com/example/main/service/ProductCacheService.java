@@ -21,7 +21,7 @@ public class ProductCacheService {
         return productRepository.getProductModelById(id);
     }
 
-    @Cacheable(value = "products", key = "{#search, #sort.toString(), #pageSize, #pageNumber}", sync = true)
+    @Cacheable(value = "products", key = "{#search, #sort.toString(), #pageSize, #pageNumber}")
     public Flux<ProductModel> getProducts(String search, Sort sort, int pageSize, int pageNumber) {
         final var productsFlux = (search == null)
                 ? productRepository.findAll(sort)
