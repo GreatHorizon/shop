@@ -4,22 +4,24 @@ import com.example.payment.error.NotEnoughMoneyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 @Service
 public class PaymentService {
-    private int balance = 2000;
+    private final AtomicInteger balance = new AtomicInteger(2000);
 
 
     public Mono<Integer> getBalance() {
-        return Mono.just(balance);
+        return Mono.just(balance.get());
     }
 
     public Mono<Integer> pay(int amount) {
-        if (amount > balance) {
+        if (amount > balance.get()) {
             throw new NotEnoughMoneyException("Not enough money");
         }
 
-        balance = balance - amount;
+        final var newBalance = balance.updateAndGet((balance) -> balance - amount);
 
-        return Mono.just(balance);
+        return Mono.just(newBalance);
     }
 }
