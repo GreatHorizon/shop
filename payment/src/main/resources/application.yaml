@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: shop
+  r2dbc:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/shop-app
+
+
+  liquibase:
+    enabled: true
+
+server:
+  port: 8081
+  address: 0.0.0.0
+
+
+logging:
+  level:
+    org.springframework.r2dbc: DEBUG
+    io.r2dbc.postgresql: DEBUG
