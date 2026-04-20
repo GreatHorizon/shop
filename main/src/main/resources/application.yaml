@@ -6,14 +6,27 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
 
-#  data:
-#    redis:
-#      host: localhost
-#      port: 6379
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            provider: keycloak
+            client-id: shop-app
+            client-secret: 5r6RiXMyRitSG8YF2b7bKzMb74SKyNUu
+            authorization-grant-type: client_credentials
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8180/realms/shop-app
+
   data:
     redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT:6379}
+      host: localhost
+      port: 6379
+  #  data:
+  #    redis:
+  #      host: ${REDIS_HOST:redis}
+  #      port: ${REDIS_PORT:6379}
 
 
   liquibase:
@@ -32,6 +45,7 @@ logging:
   level:
     org.springframework.r2dbc: DEBUG
     io.r2dbc.postgresql: DEBUG
+    org.springframework.security: DEBUG
     liquibase: DEBUG
 
 main:
