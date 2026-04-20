@@ -1,14 +1,8 @@
 package com.example.main.unit.service;
 
 import com.example.main.dto.OrderDto;
-import com.example.main.model.OrderModel;
-import com.example.main.model.ProductModel;
-import com.example.main.model.ProductsInCartModel;
-import com.example.main.model.ProductsInOrderModel;
-import com.example.main.repository.CartRepository;
-import com.example.main.repository.OrderRepository;
-import com.example.main.repository.ProductRepository;
-import com.example.main.repository.ProductsInOrderRepository;
+import com.example.main.model.*;
+import com.example.main.repository.*;
 import com.example.main.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +40,12 @@ class OrderServiceTest {
     @MockitoBean
     private ProductRepository productRepository;
 
+    @MockitoBean
+    private UserRepository userRepository;
+
+    private final UserModel user = new UserModel(1L, "username");
+
+
     @BeforeEach
     void resetAll() {
         Mockito.reset(orderRepository, cartRepository, productsInOrderRepository, productRepository);
@@ -57,11 +57,13 @@ class OrderServiceTest {
         cartItem1.setId(1L);
         cartItem1.setProductId(1L);
         cartItem1.setCount(2);
+        cartItem1.setUserId(user.getId());
 
         ProductsInCartModel cartItem2 = new ProductsInCartModel();
         cartItem2.setId(2L);
         cartItem2.setProductId(2L);
         cartItem2.setCount(1);
+        cartItem2.setUserId(user.getId());
 
         ProductModel product1 = new ProductModel();
         product1.setId(1L);
@@ -77,7 +79,7 @@ class OrderServiceTest {
         product2.setMainImagePath("path 2");
         product2.setPrice(200);
 
-        OrderModel savedOrder = new OrderModel(1L);
+        OrderModel savedOrder = new OrderModel(1L, user.getId());
 
         when(cartRepository.findAll())
                 .thenReturn(Flux.just(cartItem1, cartItem2));
@@ -90,10 +92,13 @@ class OrderServiceTest {
         when(orderRepository.save(any(OrderModel.class)))
                 .thenReturn(Mono.just(savedOrder));
 
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Mono.just(user));
+
+
         when(productsInOrderRepository.save(any(ProductsInOrderModel.class)))
                 .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        StepVerifier.create(orderService.createOrder())
+        StepVerifier.create(orderService.createOrder(user.getUsername()))
                 .expectNext(1L)
                 .verifyComplete();
 
@@ -128,8 +133,8 @@ class OrderServiceTest {
 
     @Test
     void getOrders_shouldReturnAllOrdersAsDtos() {
-        OrderModel order1 = new OrderModel(1L);
-        OrderModel order2 = new OrderModel(2L);
+        OrderModel order1 = new OrderModel(1L, user.getId());
+        OrderModel order2 = new OrderModel(2L, user.getId());
 
         ProductsInOrderModel order1Item = new ProductsInOrderModel();
         order1Item.setId(101L);
@@ -157,6 +162,8 @@ class OrderServiceTest {
         product2.setMainImagePath("path");
         product2.setPrice(500);
 
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Mono.just(user));
+
         when(orderRepository.findAll())
                 .thenReturn(Flux.just(order1, order2));
 
@@ -170,7 +177,7 @@ class OrderServiceTest {
         when(productRepository.getProductModelById(20L))
                 .thenReturn(Mono.just(product2));
 
-        StepVerifier.create(orderService.getOrders().collectList())
+        StepVerifier.create(orderService.getOrders(user.getUsername()).collectList())
                 .assertNext(orderDtos -> {
                     assertEquals(2, orderDtos.size());
 
@@ -196,7 +203,7 @@ class OrderServiceTest {
 
     @Test
     void getOrder_shouldReturnOrderByIdAsDto() {
-        OrderModel order = new OrderModel(1L);
+        OrderModel order = new OrderModel(1L, user.getId());
 
         ProductsInOrderModel orderItem = new ProductsInOrderModel();
         orderItem.setId(201L);
@@ -211,7 +218,9 @@ class OrderServiceTest {
         product.setMainImagePath("path");
         product.setPrice(100000);
 
-        when(orderRepository.getOrderById(1L))
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Mono.just(user));
+
+        when(orderRepository.getOrderById(1L, user.getId()))
                 .thenReturn(Mono.just(order));
 
         when(productsInOrderRepository.findByOrderId(1L))
@@ -220,7 +229,7 @@ class OrderServiceTest {
         when(productRepository.getProductModelById(100L))
                 .thenReturn(Mono.just(product));
 
-        StepVerifier.create(orderService.getOrder(1L))
+        StepVerifier.create(orderService.getOrder(1L, user.getUsername()))
                 .assertNext(orderDto -> {
                     assertEquals(1L, orderDto.id());
                     assertEquals(1, orderDto.items().size());
@@ -228,7 +237,7 @@ class OrderServiceTest {
                 })
                 .verifyComplete();
 
-        verify(orderRepository).getOrderById(1L);
+        verify(orderRepository).getOrderById(1L, user.getId());
         verify(productsInOrderRepository).findByOrderId(1L);
         verify(productRepository).getProductModelById(100L);
     }

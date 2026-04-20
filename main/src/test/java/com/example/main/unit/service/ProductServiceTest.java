@@ -3,8 +3,10 @@ package com.example.main.unit.service;
 import com.example.main.model.ProductModel;
 import com.example.main.model.ProductsInCartModel;
 import com.example.main.model.SortModel;
+import com.example.main.model.UserModel;
 import com.example.main.repository.CartRepository;
 import com.example.main.repository.ProductRepository;
+import com.example.main.repository.UserRepository;
 import com.example.main.service.ProductCacheService;
 import com.example.main.service.ProductService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,10 +36,17 @@ class ProductServiceTest {
     @MockitoBean
     private CartRepository cartRepository;
 
+    @MockitoBean
+    private UserRepository userRepository;
+
     @BeforeEach
     void resetAll() {
         Mockito.reset(productRepository, cartRepository);
     }
+
+    private final Long userId = 1L;
+    private final String username = "123";
+    private final UserModel userModel = new UserModel(userId, username);
 
     @Test
     void getProduct_shouldReturnProductDto_whenProductExists() {
@@ -58,10 +67,13 @@ class ProductServiceTest {
 
         when(productRepository.getProductModelById(productId))
                 .thenReturn(Mono.just(productModel));
-        when(cartRepository.findByProductId(productId))
+        when(cartRepository.findByProductIdAndUserId(productId, userId))
                 .thenReturn(Mono.just(cartItem));
 
-        StepVerifier.create(productService.getProduct(productId))
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
+
+
+        StepVerifier.create(productService.getProduct(productId, username))
                 .assertNext(result -> {
                     assertNotNull(result);
                     assertEquals(productId, result.id());
@@ -74,7 +86,7 @@ class ProductServiceTest {
                 .verifyComplete();
 
         verify(productRepository).getProductModelById(productId);
-        verify(cartRepository).findByProductId(productId);
+        verify(cartRepository).findByProductIdAndUserId(productId, userId);
     }
 
     @Test
@@ -91,10 +103,12 @@ class ProductServiceTest {
 
         when(productRepository.getProductModelById(productId))
                 .thenReturn(Mono.just(productModel));
-        when(cartRepository.findByProductId(productId))
+        when(cartRepository.findByProductIdAndUserId(productId, userId))
                 .thenReturn(Mono.empty());
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
 
-        StepVerifier.create(productService.getProduct(productId))
+
+        StepVerifier.create(productService.getProduct(productId, username))
                 .assertNext(result -> {
                     assertNotNull(result);
                     assertEquals(productId, result.id());
@@ -104,7 +118,7 @@ class ProductServiceTest {
                 .verifyComplete();
 
         verify(productRepository).getProductModelById(productId);
-        verify(cartRepository).findByProductId(productId);
+        verify(cartRepository).findByProductIdAndUserId(productId, userId);
     }
 
     @Test
@@ -118,13 +132,16 @@ class ProductServiceTest {
                 .thenReturn(Flux.just(product1, product2, product3, product4));
         when(productRepository.count())
                 .thenReturn(Mono.just(4L));
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
 
-        when(cartRepository.findByProductId(1L)).thenReturn(Mono.empty());
-        when(cartRepository.findByProductId(2L)).thenReturn(Mono.empty());
-        when(cartRepository.findByProductId(3L)).thenReturn(Mono.empty());
-        when(cartRepository.findByProductId(4L)).thenReturn(Mono.empty());
 
-        StepVerifier.create(productService.getProducts(null, SortModel.NO, 10, 1))
+        when(cartRepository.findByProductIdAndUserId(1L, userId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(2L, userId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(3L, userId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(4L, userId)).thenReturn(Mono.empty());
+
+
+        StepVerifier.create(productService.getProducts(null, SortModel.NO, 10, 1, username))
                 .assertNext(dto -> {
                     assertNotNull(dto);
                     assertEquals(2, dto.items().size());
@@ -143,10 +160,10 @@ class ProductServiceTest {
 
         verify(productRepository).findAll(Sort.unsorted());
         verify(productRepository).count();
-        verify(cartRepository).findByProductId(1L);
-        verify(cartRepository).findByProductId(2L);
-        verify(cartRepository).findByProductId(3L);
-        verify(cartRepository).findByProductId(4L);
+        verify(cartRepository).findByProductIdAndUserId(1L, userId);
+        verify(cartRepository).findByProductIdAndUserId(2L, userId);
+        verify(cartRepository).findByProductIdAndUserId(3L, userId);
+        verify(cartRepository).findByProductIdAndUserId(4L, userId);
     }
 
     @Test
@@ -158,11 +175,13 @@ class ProductServiceTest {
                 .thenReturn(Flux.just(product1, product2));
         when(productRepository.count())
                 .thenReturn(Mono.just(2L));
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
 
-        when(cartRepository.findByProductId(1L)).thenReturn(Mono.empty());
-        when(cartRepository.findByProductId(2L)).thenReturn(Mono.empty());
 
-        StepVerifier.create(productService.getProducts(null, SortModel.ALPHA, 10, 1))
+        when(cartRepository.findByProductIdAndUserId(1L, userId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(2L, userId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(productService.getProducts(null, SortModel.ALPHA, 10, 1, username))
                 .assertNext(dto -> {
                     assertNotNull(dto);
                     assertFalse(dto.items().isEmpty());
@@ -175,8 +194,8 @@ class ProductServiceTest {
 
         verify(productRepository).findAll(Sort.by("title"));
         verify(productRepository).count();
-        verify(cartRepository).findByProductId(1L);
-        verify(cartRepository).findByProductId(2L);
+        verify(cartRepository).findByProductIdAndUserId(1L, userId);
+        verify(cartRepository).findByProductIdAndUserId(2L, userId);
     }
 
     @Test
@@ -188,11 +207,13 @@ class ProductServiceTest {
                 .thenReturn(Flux.just(product1, product2));
         when(productRepository.count())
                 .thenReturn(Mono.just(2L));
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
 
-        when(cartRepository.findByProductId(1L)).thenReturn(Mono.empty());
-        when(cartRepository.findByProductId(2L)).thenReturn(Mono.empty());
 
-        StepVerifier.create(productService.getProducts(null, SortModel.PRICE, 10, 1))
+        when(cartRepository.findByProductIdAndUserId(1L, userId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(2L, userId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(productService.getProducts(null, SortModel.PRICE, 10, 1, username))
                 .assertNext(dto -> {
                     assertNotNull(dto);
                     assertFalse(dto.items().isEmpty());
@@ -203,8 +224,8 @@ class ProductServiceTest {
 
         verify(productRepository).findAll(Sort.by("price"));
         verify(productRepository).count();
-        verify(cartRepository).findByProductId(1L);
-        verify(cartRepository).findByProductId(2L);
+        verify(cartRepository).findByProductIdAndUserId(1L, userId);
+        verify(cartRepository).findByProductIdAndUserId(2L, userId);
     }
 
     @Test
@@ -228,10 +249,12 @@ class ProductServiceTest {
         when(productRepository.count())
                 .thenReturn(Mono.just(1L));
 
-        when(cartRepository.findByProductId(1L))
+        when(cartRepository.findByProductIdAndUserId(1L, userId))
                 .thenReturn(Mono.empty());
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
 
-        StepVerifier.create(productService.getProducts(search, SortModel.NO, 10, 1))
+
+        StepVerifier.create(productService.getProducts(search, SortModel.NO, 10, 1, username))
                 .assertNext(dto -> {
                     assertNotNull(dto);
                     assertFalse(dto.items().isEmpty());
@@ -248,7 +271,7 @@ class ProductServiceTest {
                         Sort.unsorted()
                 );
         verify(productRepository).count();
-        verify(cartRepository).findByProductId(1L);
+        verify(cartRepository).findByProductIdAndUserId(1L, userId);
     }
 
     @Test
@@ -263,11 +286,13 @@ class ProductServiceTest {
                 .thenReturn(Flux.just(product1, product2, product3, product4, product5));
         when(productRepository.count())
                 .thenReturn(Mono.just(5L));
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(userModel));
 
-        when(cartRepository.findByProductId(3L)).thenReturn(Mono.empty());
-        when(cartRepository.findByProductId(4L)).thenReturn(Mono.empty());
 
-        StepVerifier.create(productService.getProducts(null, SortModel.NO, 2, 2))
+        when(cartRepository.findByProductIdAndUserId(3L, userId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(4L, userId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(productService.getProducts(null, SortModel.NO, 2, 2, username))
                 .assertNext(dto -> {
                     assertNotNull(dto);
                     assertEquals(1, dto.items().size());
@@ -285,7 +310,7 @@ class ProductServiceTest {
 
         verify(productRepository).findAll(Sort.unsorted());
         verify(productRepository).count();
-        verify(cartRepository).findByProductId(3L);
-        verify(cartRepository).findByProductId(4L);
+        verify(cartRepository).findByProductIdAndUserId(3L, userId);
+        verify(cartRepository).findByProductIdAndUserId(4L, userId);
     }
 }

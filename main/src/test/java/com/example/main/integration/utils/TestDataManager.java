@@ -2,6 +2,7 @@ package com.example.main.integration.utils;
 
 import com.example.main.model.ProductModel;
 import com.example.main.model.ProductsInCartModel;
+import com.example.main.model.UserModel;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -13,6 +14,11 @@ public class TestDataManager {
 
     public TestDataManager(R2dbcEntityTemplate entityTemplate) {
         this.entityTemplate = entityTemplate;
+    }
+
+    public Mono<UserModel> insertUser(UserModel user) {
+        return entityTemplate.insert(UserModel.class)
+                .using(user);
     }
 
     public Mono<ProductModel> insertProduct(String name, String description, Integer price) {
@@ -27,8 +33,8 @@ public class TestDataManager {
                 .using(product);
     }
 
-    public Mono<ProductsInCartModel> addProductToCart(ProductModel product, int count) {
-        ProductsInCartModel productInCartModel = new ProductsInCartModel(count, product.getId());
+    public Mono<ProductsInCartModel> addProductToCart(ProductModel product, int count, Long userId) {
+        ProductsInCartModel productInCartModel = new ProductsInCartModel(count, product.getId(), userId);
 
         return entityTemplate.insert(ProductsInCartModel.class)
                 .using(productInCartModel);
