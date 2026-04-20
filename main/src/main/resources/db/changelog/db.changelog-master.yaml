@@ -19,4 +19,31 @@ databaseChangeLog:
       relativeToChangelogFile: true
   - include:
       file: 007-add-product-id-to-product-in-order.xml
-      relativeToChangelogFile: true
+      relativeToChangelogFile:
+        true
+  - include:
+      file: 008-add-users-table.xml
+      relativeToChangelogFile:
+        true
+  - include:
+      file: 009-add-user-to-order.xml
+      relativeToChangelogFile:
+        true
+  - include:
+      file: 011-change-keycloak-id-type.xml
+      relativeToChangelogFile:
+        true
+  - include:
+      file: 010-add-user-id-to-cart.xml
+      relativeToChangelogFile:
+        true
+  - include:
+      file: 012-actualize-user-table.xml
+      relativeToChangelogFile:
+        true
+  - include:
+      file: 013-autoincrement-for-user-id.xml
+      relativeToChangelogFile:
+        true
+
+
