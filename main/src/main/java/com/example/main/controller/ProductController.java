@@ -11,12 +11,16 @@ import com.example.main.utils.ViewNames;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
+import java.security.Principal;
+
 
 @Controller
 public class ProductController {
@@ -39,8 +43,10 @@ public class ProductController {
     }
 
     @PostMapping(value = "/items/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Mono<String> createItem(@ModelAttribute("item") CreateProductDto item,
-                                   @RequestPart("image") FilePart image) {
+    public Mono<String> createItem(
+            @ModelAttribute("item") CreateProductDto item,
+            @RequestPart("image") FilePart image
+    ) {
         return filesService.upload(image)
                 .flatMap(savedFileName -> {
                     String mainImagePath = "uploads/" + savedFileName;
@@ -51,10 +57,18 @@ public class ProductController {
 
 
     @GetMapping("/items/{id}")
-    Mono<String> getProduct(Model model, @PathVariable Long id) {
-        return productService.getProduct(id)
+    Mono<String> getProduct(
+            Model model,
+            @PathVariable Long id,
+            @AuthenticationPrincipal Principal principal
+
+    ) {
+        String username = principal != null ? principal.getName() : null;
+
+        return productService.getProduct(id, username)
                 .doOnNext((item) -> {
                     model.addAttribute("item", item);
+                    model.addAttribute("authorized", username != null);
                 })
                 .then(Mono.just(ViewNames.PRODUCT));
     }
@@ -65,14 +79,18 @@ public class ProductController {
             @RequestParam(name = "search", required = false) String search,
             @RequestParam(name = "sort", required = false, defaultValue = "NO") SortModel sort,
             @RequestParam(name = "pageSize", required = false, defaultValue = "5") Integer pageSize,
-            @RequestParam(name = "pageNumber", required = false, defaultValue = "1") Integer pageNumber
+            @RequestParam(name = "pageNumber", required = false, defaultValue = "1") Integer pageNumber,
+            @AuthenticationPrincipal Principal principal
     ) {
-        return productService.getProducts(search, sort, pageSize, pageNumber)
+        String username = principal != null ? principal.getName() : null;
+
+        return productService.getProducts(search, sort, pageSize, pageNumber, username)
                 .doOnNext((productsDto) -> {
                     model.addAttribute("items", productsDto.items());
                     model.addAttribute("search", search);
                     model.addAttribute("sort", sort);
                     model.addAttribute("paging", productsDto.pagingDto());
+                    model.addAttribute("authorized", username != null);
                 })
                 .then(Mono.just(ViewNames.PRODUCTS));
     }
@@ -81,9 +99,12 @@ public class ProductController {
     @PostMapping("/items")
     Mono<Void> changeCartStateFromItems(
             ServerWebExchange exchange,
-            @ModelAttribute ChangeCartStateItemsRequest request
+            @ModelAttribute ChangeCartStateItemsRequest request,
+            @AuthenticationPrincipal Principal principal
     ) {
-        return cartService.updateCartStateForProduct(request.id(), request.action())
+        String username = principal != null ? principal.getName() : null;
+
+        return cartService.updateCartStateForProduct(request.id(), request.action(), username)
                 .then(Mono.defer(() -> {
                     var uri = UriComponentsBuilder.fromPath("/items")
                             .queryParam("search", request.search())
@@ -104,10 +125,15 @@ public class ProductController {
     Mono<String> changeCartStateFromItem(
             Model model,
             @PathVariable(name = "id") Long id,
-            @ModelAttribute ChangeCartStateItemRequest request
+            @ModelAttribute ChangeCartStateItemRequest request,
+            @AuthenticationPrincipal Principal principal
+
     ) {
-        return cartService.updateCartStateForProduct(id, request.action())
-                .then(productService.getProduct(id))
+
+        String username = principal != null ? principal.getName() : null;
+
+        return cartService.updateCartStateForProduct(id, request.action(), username)
+                .then(productService.getProduct(id, username))
                 .doOnNext((item -> {
                     model.addAttribute("item", item);
                 }))
