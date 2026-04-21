@@ -57,13 +57,14 @@ public class OrderService {
     public Flux<OrderDto> getOrders(String username) {
         return userRepository
                 .findByUsername(username)
-                .flatMapMany(user -> orderRepository.findAll()
+                .flatMapMany(user -> orderRepository.getOrdersByUserId(user.getId())
                         .flatMap(orderModel ->
                                 getProducts(orderModel)
                                         .collectList()
                                         .map(products -> createOrderDto(orderModel, products)
                                         )
-                        ));
+                        )
+                );
 
     }
 

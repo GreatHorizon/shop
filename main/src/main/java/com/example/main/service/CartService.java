@@ -95,7 +95,12 @@ public class CartService {
     @Transactional
     @CacheEvict(cacheNames = "cart-items", key = "#username")
     public Mono<Void> cleanCart(String username) {
-        return cartRepository.deleteAll();
+        return userRepository
+                .findByUsername(username)
+                .flatMap(user -> cartRepository
+                        .deleteByUserId(user.getId()
+                        )
+                );
     }
 
 

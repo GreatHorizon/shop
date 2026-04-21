@@ -11,4 +11,6 @@ public interface CartRepository extends R2dbcRepository<ProductsInCartModel, Lon
     Mono<ProductsInCartModel> findByProductIdAndUserId(Long productId, Long userId);
 
     Flux<ProductsInCartModel> findAllByUserId(Long userId);
+
+    Mono<Void> deleteByUserId(Long userId);
 }
