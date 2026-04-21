@@ -1,11 +1,12 @@
 package com.example.main.controller;
 
-import com.example.payment.client.api.PayApi;
-import com.example.payment.client.model.PaymentRequest;
 import com.example.main.service.CartService;
 import com.example.main.service.OrderService;
 import com.example.main.utils.ViewNames;
+import com.example.payment.client.api.PayApi;
+import com.example.payment.client.model.PaymentRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
+
+import java.security.Principal;
 
 @Controller
 public class OrderController {
@@ -31,14 +34,18 @@ public class OrderController {
     }
 
     @PostMapping("/buy")
+    Mono<Void> createOrder(
+            ServerWebExchange exchange,
+            @AuthenticationPrincipal Principal principal
+    ) {
+        final var username = principal.getName();
 
-    Mono<Void> createOrder(ServerWebExchange exchange) {
-        return cartService.getCartPrice()
+        return cartService.getCartPrice(username)
                 .flatMap(amount ->
                         payApi.makePayment(new PaymentRequest().amount(amount))
-                                .flatMap(response -> orderService.createOrder())
+                                .flatMap(response -> orderService.createOrder(username))
                                 .flatMap(orderId ->
-                                        cartService.cleanCart()
+                                        cartService.cleanCart(username)
                                                 .thenReturn(orderId)
                                 )
                                 .flatMap(orderId -> {
@@ -71,8 +78,12 @@ public class OrderController {
     }
 
     @GetMapping("/orders")
-    Mono<String> getOrders(Model model) {
-        return orderService.getOrders()
+    Mono<String> getOrders(
+            Model model,
+            @AuthenticationPrincipal Principal principal
+    ) {
+        final var username = principal.getName();
+        return orderService.getOrders(username)
                 .collectList()
                 .doOnNext((orders) -> {
                     model.addAttribute("orders", orders);
@@ -84,9 +95,11 @@ public class OrderController {
     Mono<String> getOrder(
             @PathVariable(name = "id") Long id,
             @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,
-            Model model
+            Model model,
+            @AuthenticationPrincipal Principal principal
     ) {
-        return orderService.getOrder(id)
+        final var username = principal.getName();
+        return orderService.getOrder(id, username)
                 .doOnNext((order) -> {
                             model.addAttribute("order", order);
                             model.addAttribute("newOrder", newOrder);

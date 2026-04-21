@@ -8,7 +8,9 @@ import reactor.core.publisher.Mono;
 
 @Repository
 public interface CartRepository extends R2dbcRepository<ProductsInCartModel, Long> {
-    Mono<ProductsInCartModel> findByProductId(Long productId);
+    Mono<ProductsInCartModel> findByProductIdAndUserId(Long productId, Long userId);
 
-    Flux<ProductsInCartModel> findAllByOrderById();
+    Flux<ProductsInCartModel> findAllByUserId(Long userId);
+
+    Mono<Void> deleteByUserId(Long userId);
 }

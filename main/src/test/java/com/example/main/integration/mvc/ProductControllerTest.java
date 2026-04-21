@@ -2,22 +2,32 @@ package com.example.main.integration.mvc;
 
 import com.example.main.BaseTestContainerTest;
 import com.example.main.integration.utils.TestDataManager;
-import com.example.main.model.OrderModel;
-import com.example.main.model.ProductModel;
-import com.example.main.model.ProductsInCartModel;
-import com.example.main.model.ProductsInOrderModel;
+import com.example.main.model.*;
 import com.example.main.service.ProductCacheService;
+import com.example.payment.client.api.BalanceApi;
+import com.example.payment.client.api.PayApi;
+import com.example.payment.client.invoker.ApiClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.relational.core.query.Query;
 import org.springframework.http.MediaType;
+import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientManager;
+import org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +39,9 @@ class ProductControllerTest extends BaseTestContainerTest {
     private WebTestClient webTestClient;
 
     @Autowired
+    DatabaseClient databaseClient;
+
+    @Autowired
     private TestDataManager testDataManager;
 
     @Autowired
@@ -36,6 +49,60 @@ class ProductControllerTest extends BaseTestContainerTest {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @MockitoBean
+    private BalanceApi balanceApi;
+
+    @MockitoBean
+    private PayApi payApi;
+
+    @MockitoBean
+    private ApiClient paymentApiClient;
+
+    @MockitoBean
+    private WebClient webClient;
+
+    @MockitoBean
+    private ReactiveOAuth2AuthorizedClientManager authorizedClientManager;
+
+    @Autowired
+    ApplicationContext context;
+
+    private final UserModel user = new UserModel(1L, "username");
+
+    @Autowired
+    private TestDataManager testEntityManager;
+
+
+    @BeforeEach
+    void setUp() {
+        redisTemplate.getConnectionFactory()
+                .getConnection()
+                .serverCommands()
+                .flushAll();
+
+        entityTemplate.delete(ProductsInOrderModel.class)
+                .all()
+                .then(entityTemplate.delete(OrderModel.class).all())
+                .then(entityTemplate.delete(ProductsInCartModel.class).all())
+                .then(entityTemplate.delete(ProductModel.class).all())
+                .block();
+
+        this.webTestClient = WebTestClient.bindToApplicationContext(context)
+                .apply(SecurityMockServerConfigurers.springSecurity())
+                .configureClient()
+                .build();
+    }
+
+
+    @BeforeEach
+    void cleanDb() {
+        databaseClient.sql("DELETE FROM products_in_cart").fetch().rowsUpdated()
+                .then(databaseClient.sql("DELETE FROM users").fetch().rowsUpdated())
+                .then(databaseClient.sql("DELETE FROM users").fetch().rowsUpdated())
+                .then(databaseClient.sql("DELETE FROM products").fetch().rowsUpdated())
+                .block();
+    }
 
     @Test
     void givenProductsCachedByRoute_whenDeletedFromDb_thenGetProductsRouteReturnsCachedProducts() {
@@ -149,21 +216,6 @@ class ProductControllerTest extends BaseTestContainerTest {
                     assertTrue(body.contains("cached desc"));
                     assertTrue(body.contains("777"));
                 });
-    }
-
-    @BeforeEach
-    void setUp() {
-        redisTemplate.getConnectionFactory()
-                .getConnection()
-                .serverCommands()
-                .flushAll();
-
-        entityTemplate.delete(ProductsInOrderModel.class)
-                .all()
-                .then(entityTemplate.delete(OrderModel.class).all())
-                .then(entityTemplate.delete(ProductsInCartModel.class).all())
-                .then(entityTemplate.delete(ProductModel.class).all())
-                .block();
     }
 
     @Test
@@ -312,13 +364,24 @@ class ProductControllerTest extends BaseTestContainerTest {
 
     @Test
     void givenIdAndPlus_whenChangeCartStateFromItems_thenRedirectIncrement() {
+        final var insertUser = testEntityManager.insertUser(user).block();
+
+
         ProductModel model = testDataManager
                 .insertProduct("Product 2", "desc test", 1000)
                 .block();
 
         assertNotNull(model);
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(SecurityMockServerConfigurers.mockAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                insertUser.getUsername(),
+                                "password",
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                        )
+                ))
+                .post()
                 .uri("/items")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(
@@ -349,13 +412,22 @@ class ProductControllerTest extends BaseTestContainerTest {
 
     @Test
     void givenIdAndRemove_whenChangeCartStateFromItems_thenRedirectWithDecrement() {
+        final var insertUser = testEntityManager.insertUser(user).block();
+
         ProductModel model = testDataManager
                 .insertProduct("Product 2", "desc test", 1000)
                 .block();
 
         assertNotNull(model);
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(SecurityMockServerConfigurers.mockAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                insertUser.getUsername(),
+                                "password",
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                        )
+                )).post()
                 .uri("/items")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue("id=" + model.getId() + "&action=PLUS")
@@ -371,7 +443,15 @@ class ProductControllerTest extends BaseTestContainerTest {
         assertNotNull(created);
         assertEquals(1, created.getCount());
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(SecurityMockServerConfigurers.mockAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                insertUser.getUsername(),
+                                "password",
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                        )
+                ))
+                .post()
                 .uri("/items")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(
@@ -400,13 +480,24 @@ class ProductControllerTest extends BaseTestContainerTest {
 
     @Test
     void givenIdAndPlus_whenChangeCartStateFromItem_thenRenderProductPage() {
+        final var insertUser = testEntityManager.insertUser(user).block();
+
+
         ProductModel model = testDataManager
                 .insertProduct("Product 2", "desc test", 1000)
                 .block();
 
         assertNotNull(model);
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(SecurityMockServerConfigurers.mockAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                insertUser.getUsername(),
+                                "password",
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                        )
+                ))
+                .post()
                 .uri("/items/{id}?action=PLUS", model.getId())
                 .exchange()
                 .expectStatus().isOk()

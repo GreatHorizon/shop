@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+           http://www.liquibase.org/xml/ns/dbchangelog
+           http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="add-user-id-to-orders" author="selawik">
+        <addColumn tableName="orders">
+            <column name="user_id" type="BIGINT"/>
+        </addColumn>
+
+        <addForeignKeyConstraint
+                baseTableName="orders"
+                baseColumnNames="user_id"
+                constraintName="fk_orders_user"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="RESTRICT"
+                onUpdate="RESTRICT"/>
+
+        <addNotNullConstraint
+                tableName="orders"
+                columnName="user_id"
+                columnDataType="BIGINT"/>
+
+        <rollback>
+            <dropColumn tableName="orders" columnName="user_id"/>
+            <dropForeignKeyConstraint constraintName="fk_orders_user" baseTableName="orders"/>
+            <dropNotNullConstraint tableName="orders" columnName="user_id"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -18,9 +18,17 @@ public class ProductsInCartModel {
     @Column("product_id")
     private Long productId;
 
-    public ProductsInCartModel(int count, Long productId) {
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    @Column("user_id")
+    private Long userId;
+
+    public ProductsInCartModel(int count, Long productId, Long userId) {
         this.count = count;
         this.productId = productId;
+        this.userId = userId;
     }
 
     public ProductsInCartModel() {
@@ -34,6 +42,8 @@ public class ProductsInCartModel {
     public void setCount(int count) {
         this.count = count;
     }
+
+
 
 
     public void setId(Long id) {
